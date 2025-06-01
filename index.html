@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Web Multi-LLM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        #chatbox::-webkit-scrollbar { width: 8px; }
+        #chatbox::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        #chatbox::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        #chatbox::-webkit-scrollbar-thumb:hover { background: #555; }
+        .message { max-width: 75%; word-wrap: break-word; }
+        .user-message { background-color: #3b82f6; color: white; align-self: flex-end; }
+        .bot-message { background-color: #e5e7eb; color: #1f2937; align-self: flex-start; }
+        .message-container { display: flex; flex-direction: column; gap: 8px; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin-right: 8px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error-message { background-color: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 16px; text-align: center; }
+        .api-info { font-size: 0.875rem; color: #4b5563; }
+        .api-info h4 { font-weight: 600; color: #1f2937; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+        .api-info a { color: #2563eb; text-decoration: underline; }
+        .api-info a:hover { color: #1d4ed8; }
+        .hidden { display: none !important; }
+        .api-info-container { max-height: 150px; overflow-y: auto; padding-right: 8px; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-2 md:p-4">
+
+    <div class="w-full max-w-2xl bg-white shadow-xl rounded-lg flex flex-col">
+
+        <div id="apiSetupPage" class="w-full">
+            <header class="bg-blue-600 text-white p-4 rounded-t-lg">
+                <h1 class="text-xl md:text-2xl font-semibold text-center">Configurar Chatbot</h1>
+            </header>
+
+            <div class="p-4 border-b border-gray-200">
+                <div>
+                    <label for="apiProvider" class="block text-sm font-medium text-gray-700 mb-1">Provedor da API:</label>
+                    <select id="apiProvider" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 mb-3">
+                        <option value="gemini" selected>Google (Gemini)</option>
+                        <option value="openai">OpenAI (GPT)</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="anthropic">Anthropic (Claude)</option>
+                        <option value="cohere">Cohere</option>
+                        <option value="azure_ai">Microsoft Azure AI</option>
+                        <option value="aws_bedrock">AWS (Bedrock)</option>
+                        <option value="huggingface">Hugging Face</option>
+                        <option value="ai21labs">AI21 Labs</option>
+                        <option value="mistralai">Mistral AI</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="apiKey" class="block text-sm font-medium text-gray-700 mb-1">Chave da API (ou Token):</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="password" id="apiKey" class="flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Insira sua chave/token da API aqui">
+                        <button id="saveApiKeyAndProceed" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                            Salvar e Continuar
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Sua chave de API é armazenada apenas no seu navegador.</p>
+                    <div id="apiKeyMessage" class="mt-2 text-sm"></div>
+                </div>
+
+                <div class="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 api-info api-info-container">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Como encontrar sua Chave de API:</h3>
+                    <div id="geminiInfo"><h4>Google (Gemini):</h4><p>Obtenha no Google AI Studio: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a></p></div>
+                    <div id="openaiInfo" class="hidden"><h4>OpenAI (GPT):</h4><p>Acesse sua conta OpenAI: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">platform.openai.com/api-keys</a></p></div>
+                    <div id="deepseekInfo" class="hidden"><h4>DeepSeek:</h4><p>Plataforma DeepSeek: <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer">platform.deepseek.com</a> (seção API Keys)</p></div>
+                    <div id="anthropicInfo" class="hidden"><h4>Anthropic (Claude):</h4><p>Console da Anthropic: <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com/account/keys</a></p></div>
+                    <div id="cohereInfo" class="hidden"><h4>Cohere:</h4><p>Dashboard da Cohere: <a href="https://dashboard.cohere.com/api-keys" target="_blank" rel="noopener noreferrer">dashboard.cohere.com/api-keys</a></p></div>
+                    <div id="azure_aiInfo" class="hidden"><h4>Microsoft Azure AI:</h4><p>Portal Azure: <a href="https://portal.azure.com/" target="_blank" rel="noopener noreferrer">portal.azure.com</a>. Chaves por recurso (ex: Azure OpenAI). Endpoint do recurso também é necessário.</p></div>
+                    <div id="aws_bedrockInfo" class="hidden"><h4>AWS (Bedrock):</h4><p>Console AWS: <a href="https://aws.amazon.com/bedrock/" target="_blank" rel="noopener noreferrer">aws.amazon.com/bedrock</a>. Autenticação SigV4 é complexa para JS cliente; SDK ou backend recomendado. ID do Modelo e Região AWS são necessários.</p></div>
+                    <div id="huggingfaceInfo" class="hidden"><h4>Hugging Face:</h4><p>Tokens de acesso: <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">huggingface.co/settings/tokens</a>. ID do Modelo também é necessária.</p></div>
+                    <div id="ai21labsInfo" class="hidden"><h4>AI21 Labs:</h4><p>AI21 Studio: <a href="https://studio.ai21.com/account/api-key" target="_blank" rel="noopener noreferrer">studio.ai21.com/account/api-key</a></p></div>
+                    <div id="mistralaiInfo" class="hidden"><h4>Mistral AI:</h4><p>Console Mistral AI: <a href="https://console.mistral.ai/user/api-keys/" target="_blank" rel="noopener noreferrer">console.mistral.ai/user/api-keys</a></p></div>
+                </div>
+                 <div id="setupErrorMessageContainer" class="mt-3"></div>
+            </div>
+        </div>
+
+        <div id="chatPage" class="w-full hidden">
+            <header class="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
+                <h1 class="text-xl md:text-2xl font-semibold">Chatbot Multi-LLM</h1>
+                <button id="changeApiSettingsBtn" class="text-sm bg-blue-700 hover:bg-blue-800 text-white py-1 px-3 rounded-md">
+                    Mudar API
+                </button>
+            </header>
+            <div id="chatbox" class="flex-grow p-4 space-y-4 overflow-y-auto h-96 message-container bg-gray-50">
+                </div>
+            <div class="p-4 border-t border-gray-200 bg-white rounded-b-lg">
+                <div id="chatErrorMessageContainer" class="mb-2">
+                    </div>
+                <div class="flex items-center space-x-2">
+                    <div id="loadingIndicator" class="hidden items-center">
+                        <div class="loader"></div>
+                        <span class="text-sm text-gray-600">Digitando...</span>
+                    </div>
+                    <input type="text" id="userInput" class="flex-grow p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Digite sua mensagem..." aria-label="Digite sua mensagem">
+                    <button id="sendMessageBtn" class="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50" disabled>Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Element References
+        const ui = {
+            apiSetupPage: document.getElementById('apiSetupPage'),
+            chatPage: document.getElementById('chatPage'),
+            chatbox: document.getElementById('chatbox'),
+            userInput: document.getElementById('userInput'),
+            sendMessageBtn: document.getElementById('sendMessageBtn'),
+            apiProviderSelect: document.getElementById('apiProvider'),
+            apiKeyInput: document.getElementById('apiKey'),
+            saveApiKeyAndProceedBtn: document.getElementById('saveApiKeyAndProceed'),
+            apiKeyMessage: document.getElementById('apiKeyMessage'),
+            loadingIndicator: document.getElementById('loadingIndicator'),
+            setupErrorMessageContainer: document.getElementById('setupErrorMessageContainer'),
+            chatErrorMessageContainer: document.getElementById('chatErrorMessageContainer'),
+            changeApiSettingsBtn: document.getElementById('changeApiSettingsBtn'),
+            apiInfoDivs: { 
+                gemini: document.getElementById('geminiInfo'),
+                openai: document.getElementById('openaiInfo'),
+                deepseek: document.getElementById('deepseekInfo'),
+                anthropic: document.getElementById('anthropicInfo'),
+                cohere: document.getElementById('cohereInfo'),
+                azure_ai: document.getElementById('azure_aiInfo'),
+                aws_bedrock: document.getElementById('aws_bedrockInfo'),
+                huggingface: document.getElementById('huggingfaceInfo'),
+                ai21labs: document.getElementById('ai21labsInfo'),
+                mistralai: document.getElementById('mistralaiInfo'),
+            }
+        };
+
+        // Application State
+        let chatHistory = [];
+        let currentApiKey = '';
+        let currentApiProvider = 'gemini'; // Default provider
+
+        // UI Management Functions
+        function showApiSetupPage() {
+            ui.apiSetupPage.classList.remove('hidden');
+            ui.chatPage.classList.add('hidden');
+            loadApiKey(); 
+            ui.apiKeyInput.focus();
+        }
+
+        function showChatPage() {
+            ui.apiSetupPage.classList.add('hidden');
+            ui.chatPage.classList.remove('hidden');
+            ui.sendMessageBtn.disabled = !currentApiKey;
+            ui.userInput.focus();
+            if (ui.chatbox.children.length === 0 && currentApiKey) {
+                addMessageToChatbox(`Olá! API ${currentApiProvider.toUpperCase()} configurada. Como posso te ajudar?`, "bot");
+            }
+        }
+        
+        // Event Listener for API Provider Selection
+        ui.apiProviderSelect.addEventListener('change', (event) => {
+            currentApiProvider = event.target.value;
+            for (const providerKey in ui.apiInfoDivs) {
+                ui.apiInfoDivs[providerKey].classList.toggle('hidden', providerKey !== currentApiProvider);
+            }
+            ui.apiKeyInput.value = ''; 
+            loadApiKey(); 
+            
+            // Customize API key input placeholder based on provider requirements
+            if (currentApiProvider === 'azure_ai') {
+                ui.apiKeyInput.placeholder = 'Chave API;Endpoint do Recurso Azure';
+            } else if (currentApiProvider === 'aws_bedrock') {
+                ui.apiKeyInput.placeholder = 'ID_Modelo;Região_AWS;Chave_Proxy (Opcional)';
+            } else if (currentApiProvider === 'huggingface') {
+                ui.apiKeyInput.placeholder = 'Token_HF;ID_Completa_Modelo';
+            } else {
+                ui.apiKeyInput.placeholder = 'Insira sua chave/token da API aqui';
+            }
+        });
+
+        // Load API Key from localStorage
+        function loadApiKey() {
+            const savedKey = localStorage.getItem(`${currentApiProvider}ApiKey`);
+            if (savedKey) {
+                ui.apiKeyInput.value = savedKey;
+                currentApiKey = savedKey;
+                ui.apiKeyMessage.textContent = `Chave/Token para ${currentApiProvider.toUpperCase()} carregado.`;
+                ui.apiKeyMessage.className = 'mt-2 text-sm text-green-600';
+            } else {
+                currentApiKey = ''; 
+                ui.apiKeyMessage.textContent = `Nenhuma chave/token para ${currentApiProvider.toUpperCase()} salva.`;
+                ui.apiKeyMessage.className = 'mt-2 text-sm text-red-600';
+            }
+        }
+
+        // Save API Key and Proceed to Chat
+        ui.saveApiKeyAndProceedBtn.addEventListener('click', () => {
+            const newKey = ui.apiKeyInput.value.trim();
+            const previousApiKeyForProvider = localStorage.getItem(`${currentApiProvider}ApiKey`);
+            const previousGlobalApiProvider = localStorage.getItem('lastApiProvider');
+            clearSetupErrorMessage();
+
+            if (newKey) {
+                // Clear chat history if API provider or key for the current provider changes
+                if (previousGlobalApiProvider !== currentApiProvider || previousApiKeyForProvider !== newKey) {
+                    chatHistory = []; 
+                    ui.chatbox.innerHTML = ''; 
+                    // console.log("API settings changed, chat history cleared."); // Developer log
+                }
+                localStorage.setItem(`${currentApiProvider}ApiKey`, newKey);
+                localStorage.setItem('lastApiProvider', currentApiProvider); // Store last successfully configured provider
+                currentApiKey = newKey;
+                ui.apiKeyMessage.textContent = `Chave/Token para ${currentApiProvider.toUpperCase()} salva!`;
+                ui.apiKeyMessage.className = 'mt-2 text-sm text-green-600';
+                showChatPage();
+            } else {
+                ui.apiKeyMessage.textContent = `Por favor, insira uma chave/token para ${currentApiProvider.toUpperCase()}.`;
+                ui.apiKeyMessage.className = 'mt-2 text-sm text-red-600';
+                displaySetupErrorMessage(`Por favor, insira uma chave/token para ${currentApiProvider.toUpperCase()} válida.`);
+            }
+        });
+        
+        // Button to return to API settings page
+        ui.changeApiSettingsBtn.addEventListener('click', () => { showApiSetupPage(); });
+
+        // Error Message Display Functions
+        function displaySetupErrorMessage(message) { ui.setupErrorMessageContainer.innerHTML = `<div class="error-message">${message}</div>`; }
+        function clearSetupErrorMessage() { ui.setupErrorMessageContainer.innerHTML = ''; }
+        function displayChatErrorMessage(message) { ui.chatErrorMessageContainer.innerHTML = `<div class="error-message">${message}</div>`; }
+        function clearChatErrorMessage() { ui.chatErrorMessageContainer.innerHTML = ''; }
+
+        // Add Message to Chatbox UI
+        function addMessageToChatbox(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message p-3 rounded-lg shadow'; 
+            messageDiv.classList.add(sender === 'user' ? 'user-message' : 'bot-message');
+            messageDiv.textContent = message; // Using textContent for security and minor perf gain
+            ui.chatbox.appendChild(messageDiv);
+            ui.chatbox.scrollTop = ui.chatbox.scrollHeight; // Auto-scroll to the latest message
+        }
+
+        // Adapts chat history structure for different API provider requirements
+        function adaptChatHistoryForApi(provider, currentPrompt) {
+            let adaptedHistory = chatHistory.map(msg => {
+                // Standardize roles: 'user' for user, 'assistant' for bot/model
+                let role = msg.role;
+                if (role === 'model' || role === 'bot') {
+                    role = 'assistant';
+                }
+                // Standardize content structure
+                let content = msg.content || (msg.parts ? msg.parts[0].text : '');
+                return { role, content };
+            });
+
+            // Specific adaptations
+            if (provider === 'gemini') {
+                // Gemini expects 'parts' array
+                return adaptedHistory.map(msg => ({
+                    role: msg.role,
+                    parts: [{ text: msg.content }]
+                }));
+            }
+            if (provider === 'cohere') {
+                // Cohere expects 'USER'/'CHATBOT' roles and 'message' field
+                // It also handles the current prompt separately, not in chat_history for the current turn
+                return chatHistory.map(msg => ({ // Note: using global chatHistory, not adaptedHistory here for Cohere's specific structure
+                    role: msg.role === 'user' ? 'USER' : 'CHATBOT',
+                    message: msg.content || (msg.parts ? msg.parts[0].text : '')
+                }));
+            }
+            
+            // For most others, the standardized 'role' and 'content' should work.
+            // The current prompt is added to this adapted history before sending, except for Cohere.
+            return adaptedHistory;
+        }
+
+
+        // Send message to the selected LLM API (asynchronous function)
+        async function sendMessageToLLM(prompt) {
+            if (!currentApiKey) {
+                displayChatErrorMessage(`Chave da API ${currentApiProvider.toUpperCase()} não configurada.`);
+                showApiSetupPage(); return;
+            }
+
+            // Update UI to indicate loading
+            ui.loadingIndicator.classList.remove('hidden');
+            ui.loadingIndicator.classList.add('flex');
+            ui.sendMessageBtn.disabled = true;
+            ui.userInput.disabled = true;
+            clearChatErrorMessage();
+            
+            const currentTurnUser = { role: "user", content: prompt }; // For updating global history later
+
+            let apiUrl = '';
+            let payload = {};
+            let headers = { 'Content-Type': 'application/json' };
+            let modelForApi = "default"; 
+            
+            // Prepare request history, adapting it for the specific API
+            // Cohere handles the current prompt differently, so it's not added to requestHistory here
+            let requestHistoryPayload = adaptChatHistoryForApi(currentApiProvider);
+            if (currentApiProvider !== 'cohere') {
+                 requestHistoryPayload.push({ role: 'user', content: prompt });
+            }
+
+
+            // API specific configurations. Developer: Verify these against official API docs.
+            switch (currentApiProvider) {
+                case 'gemini':
+                    apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${currentApiKey}`;
+                    // Gemini expects 'parts' within 'contents'
+                    payload = { contents: requestHistoryPayload.map(m => ({role: m.role, parts: m.parts || [{text: m.content}]})) };
+                    break;
+                case 'openai':
+                    apiUrl = 'https://api.openai.com/v1/chat/completions';
+                    headers['Authorization'] = `Bearer ${currentApiKey}`;
+                    modelForApi = "gpt-4o-mini"; // Specify a current model
+                    payload = { model: modelForApi, messages: requestHistoryPayload };
+                    break;
+                case 'deepseek':
+                    apiUrl = 'https://api.deepseek.com/chat/completions';
+                    headers['Authorization'] = `Bearer ${currentApiKey}`;
+                    modelForApi = "deepseek-chat";
+                    payload = { model: modelForApi, messages: requestHistoryPayload };
+                    break;
+                case 'anthropic':
+                    apiUrl = 'https://api.anthropic.com/v1/messages';
+                    headers['x-api-key'] = currentApiKey;
+                    headers['anthropic-version'] = '2023-06-01'; // Check for latest version
+                    modelForApi = "claude-3-haiku-20240307"; // Specify a model
+                    payload = { model: modelForApi, max_tokens: 2048, messages: requestHistoryPayload };
+                    break;
+                case 'cohere':
+                    apiUrl = 'https://api.cohere.ai/v1/chat';
+                    headers['Authorization'] = `Bearer ${currentApiKey}`;
+                    modelForApi = "command-r"; 
+                    // Cohere's payload structure for chat: current message is separate.
+                    payload = { model: modelForApi, message: prompt, chat_history: adaptChatHistoryForApi('cohere') };
+                    break;
+                case 'azure_ai': 
+                    // Expects API_KEY;ENDPOINT in currentApiKey
+                    const azureParts = currentApiKey.split(';');
+                    if (azureParts.length < 2 || !azureParts[1].startsWith('https://')) { 
+                        displayChatErrorMessage("Azure AI: Formato da chave inválido. Use CHAVE_API;ENDPOINT_COMPLETO_AZURE_OPENAI."); 
+                        // Restore UI elements before returning
+                        ui.loadingIndicator.classList.add('hidden'); ui.loadingIndicator.classList.remove('flex');
+                        ui.sendMessageBtn.disabled = !currentApiKey; ui.userInput.disabled = !currentApiKey;
+                        return; 
+                    }
+                    headers['api-key'] = azureParts[0];
+                    apiUrl = azureParts[1]; // Full Azure OpenAI endpoint
+                    // Model is usually part of the deployment name in the endpoint for Azure OpenAI.
+                    payload = { messages: requestHistoryPayload }; 
+                    break;
+                case 'aws_bedrock':
+                    // Expects MODEL_ID;AWS_REGION;PROXY_API_KEY (if a proxy is used for auth)
+                    // Direct client-side AWS SigV4 is not recommended. This is a simplified setup.
+                    const bedrockParts = currentApiKey.split(';');
+                    if (bedrockParts.length < 2) { // Min MODEL_ID;REGION
+                        displayChatErrorMessage("AWS Bedrock: Formato da chave inválido. Use MODEL_ID;REGION_AWS(;CHAVE_PROXY_OPCIONAL)."); 
+                        ui.loadingIndicator.classList.add('hidden'); ui.loadingIndicator.classList.remove('flex');
+                        ui.sendMessageBtn.disabled = !currentApiKey; ui.userInput.disabled = !currentApiKey;
+                        return; 
+                    }
+                    const bedRockModelId = bedrockParts[0];
+                    const awsRegion = bedrockParts[1];
+                    const bedrockApiKeyProxy = bedrockParts[2] || null; // Optional proxy key
+                    
+                    // This is a generic invoke endpoint. Specific model payload structure is needed.
+                    apiUrl = `https://bedrock-runtime.${awsRegion}.amazonaws.com/model/${bedRockModelId}/invoke`; 
+                    if (bedrockApiKeyProxy) { // If using a proxy that expects a Bearer token
+                        headers['Authorization'] = `Bearer ${bedrockApiKeyProxy}`;
+                    } else {
+                        // Here, you would typically need AWS SDK for SigV4 auth if no proxy.
+                        // This example will likely fail without a proxy or backend handling auth.
+                        displayChatErrorMessage("AWS Bedrock: Autenticação direta via JS não implementada (requer SigV4). Use um proxy ou backend.");
+                        ui.loadingIndicator.classList.add('hidden'); ui.loadingIndicator.classList.remove('flex');
+                        ui.sendMessageBtn.disabled = !currentApiKey; ui.userInput.disabled = !currentApiKey;
+                        return;
+                    }
+                    // Payload structure depends heavily on the specific Bedrock model (e.g., Claude, Titan).
+                    // This is a placeholder for a Claude-like model on Bedrock.
+                    payload = {
+                        "anthropic_version": "bedrock-2023-05-31", // Example for Claude model
+                        "max_tokens": 2000,
+                        "messages": requestHistoryPayload 
+                    };
+                    // For other models like Titan, the payload would be different, e.g.:
+                    // payload = { inputText: prompt, textGenerationConfig: { maxTokenCount: 512 } };
+                    break;
+                case 'huggingface':
+                    // Expects HF_TOKEN;MODEL_ID
+                    const hfParts = currentApiKey.split(';');
+                    if (hfParts.length < 2) { 
+                        displayChatErrorMessage("Hugging Face: Formato da chave inválido. Use TOKEN_HF;MODEL_ID_COMPLETO."); 
+                        ui.loadingIndicator.classList.add('hidden'); ui.loadingIndicator.classList.remove('flex');
+                        ui.sendMessageBtn.disabled = !currentApiKey; ui.userInput.disabled = !currentApiKey;
+                        return; 
+                    }
+                    headers['Authorization'] = `Bearer ${hfParts[0]}`;
+                    const hfModelId = hfParts[1];
+                    apiUrl = `https://api-inference.huggingface.co/models/${hfModelId}`;
+                    // Payload for HF Inference API can vary. This is for conversational task.
+                    payload = { 
+                        inputs: { 
+                            past_user_inputs: requestHistoryPayload.filter(m=>m.role==='user' && m.content !== prompt).map(m=>m.content), // Exclude current prompt from past_user_inputs
+                            generated_responses: requestHistoryPayload.filter(m=>m.role==='assistant').map(m=>m.content), 
+                            text: prompt 
+                        }, 
+                        parameters: {max_new_tokens: 250, return_full_text: false}, // return_full_text: false is common
+                        options: { wait_for_model: true } // Important for cold starts
+                    };
+                    break;
+                case 'ai21labs':
+                    apiUrl = 'https://api.ai21.com/studio/v1/jamba-instruct/chat'; // Check for latest model/endpoint
+                    headers['Authorization'] = `Bearer ${currentApiKey}`;
+                    modelForApi = "jamba-instruct"; // Model can be part of endpoint or payload
+                    payload = { model: modelForApi, messages: requestHistoryPayload, maxTokens: 2048 };
+                    break;
+                case 'mistralai':
+                    apiUrl = 'https://api.mistral.ai/v1/chat/completions';
+                    headers['Authorization'] = `Bearer ${currentApiKey}`;
+                    modelForApi = "mistral-large-latest"; 
+                    payload = { model: modelForApi, messages: requestHistoryPayload };
+                    break;
+                default:
+                    displayChatErrorMessage("Provedor de API desconhecido.");
+                    ui.loadingIndicator.classList.add('hidden'); ui.loadingIndicator.classList.remove('flex');
+                    ui.sendMessageBtn.disabled = !currentApiKey; ui.userInput.disabled = !currentApiKey;
+                    return;
+            }
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({error: {message: `HTTP error ${response.status} - ${response.statusText}`}}));
+                    console.error(`API Error ${currentApiProvider}:`, response.status, errorData);
+                    let errMsg = errorData?.error?.message || errorData?.message || errorData?.detail || (typeof errorData === 'string' ? errorData : `Erro ${response.status}`);
+                    if (response.status === 401 || response.status === 403) errMsg = `Chave API inválida/não autorizada para ${currentApiProvider}. (${errMsg})`;
+                    displayChatErrorMessage(errMsg);
+                    addMessageToChatbox(`Desculpe, erro com ${currentApiProvider.toUpperCase()}: ${errMsg}`, "bot");
+                    return; 
+                }
+
+                const result = await response.json();
+                let botResponseText = "";
+
+                // Extract bot response - Developer: Verify and adjust for each API's specific response structure.
+                switch (currentApiProvider) {
+                    case 'gemini': botResponseText = result.candidates?.[0]?.content?.parts?.[0]?.text || (result.promptFeedback?.blockReason ? `Bloqueado: ${result.promptFeedback.blockReason}` : ""); break;
+                    case 'openai': case 'deepseek': case 'azure_ai': case 'mistralai': case 'ai21labs': botResponseText = result.choices?.[0]?.message?.content || ""; break;
+                    case 'anthropic': botResponseText = result.content?.[0]?.text || ""; break;
+                    case 'cohere': botResponseText = result.text || (result.chat_history?.length > 0 && result.chat_history[result.chat_history.length-1].role === 'CHATBOT' ? result.chat_history[result.chat_history.length-1].message : ""); break;
+                    case 'aws_bedrock': // Example for a Claude-like model on Bedrock
+                         botResponseText = result.completion || result.content?.[0]?.text || (result.results?.[0]?.outputText) || ""; // Highly model-dependent
+                         break;
+                    case 'huggingface': // Highly model-dependent
+                        botResponseText = result.generated_text || (Array.isArray(result) && result[0]?.generated_text) || "";
+                        if (typeof botResponseText === 'object') botResponseText = JSON.stringify(botResponseText);
+                        break;
+                    default: botResponseText = "Formato de resposta não reconhecido.";
+                }
+
+                if (botResponseText) {
+                    addMessageToChatbox(botResponseText, "bot");
+                    chatHistory.push(currentTurnUser); 
+                    chatHistory.push({ role: (currentApiProvider === 'gemini' ? 'model' : 'assistant'), content: botResponseText });
+                } else {
+                    console.error("Empty or unexpected API response:", currentApiProvider, result);
+                    addMessageToChatbox("Desculpe, não consegui processar a resposta do modelo (resposta vazia ou formato inesperado).", "bot");
+                }
+
+            } catch (error) { 
+                console.error("Network or script error during fetch:", error);
+                addMessageToChatbox("Desculpe, ocorreu um erro de conexão ou script.", "bot");
+                displayChatErrorMessage(`Erro de rede/script: ${error.message}. Verifique o console.`);
+            } finally {
+                // Restore UI elements after API call attempt
+                ui.loadingIndicator.classList.add('hidden'); ui.loadingIndicator.classList.remove('flex');
+                ui.sendMessageBtn.disabled = !currentApiKey; ui.userInput.disabled = !currentApiKey;
+                if (currentApiKey) ui.userInput.focus();
+            }
+        }
+
+        // Event listener for send button
+        ui.sendMessageBtn.addEventListener('click', () => {
+            const messageText = ui.userInput.value.trim();
+            if (messageText && currentApiKey) {
+                addMessageToChatbox(messageText, "user"); 
+                sendMessageToLLM(messageText); 
+                ui.userInput.value = ''; 
+            } else if (!currentApiKey) {
+                displayChatErrorMessage("Chave da API não está configurada.");
+                showApiSetupPage(); 
+            }
+        });
+
+        // Event listener for Enter key in input field
+        ui.userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && !ui.sendMessageBtn.disabled && currentApiKey) {
+                ui.sendMessageBtn.click();
+            }
+        });
+
+        // Initialize the application
+        function initializeApp() {
+            currentApiProvider = ui.apiProviderSelect.value; // Set initial provider from select
+            const storedProvider = localStorage.getItem('lastApiProvider');
+            if (storedProvider) { // If a provider was saved, use it
+                ui.apiProviderSelect.value = storedProvider;
+                currentApiProvider = storedProvider;
+            }
+            // Trigger change event to update UI elements like API info and placeholder
+            ui.apiProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            loadApiKey(); // Attempt to load a saved API key for the current provider
+            
+            // Show appropriate page based on API key availability
+            if (currentApiKey) {
+                showChatPage();
+            } else {
+                showApiSetupPage();
+            }
+        }
+        initializeApp(); // Start the app
+    </script>
+</body>
+</html>
